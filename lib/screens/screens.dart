@@ -1,0 +1,9 @@
+export 'home/home_screen.dart';
+export 'splash/splash_screen.dart';
+export 'login/login_screen.dart';
+export 'simulacros/simulacros_screen.dart';
+export 'question/question_screen.dart';
+export 'results/results_screen.dart';
+export 'statistics/statistics_screen.dart';
+export 'question_bank/question_bank_screen.dart';
+export 'question_detail/question_detail_screen.dart';
