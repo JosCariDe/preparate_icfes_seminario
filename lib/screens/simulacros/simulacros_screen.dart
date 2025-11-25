@@ -1,9 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:preparate_icfes_seminario/config/theme/app_colors.dart';
+import 'package:preparate_icfes_seminario/repositories/simulacro_repository.dart';
+import 'bloc/simulacros_bloc.dart';
 
 class SimulacrosScreen extends StatelessWidget {
   const SimulacrosScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => SimulacrosBloc(
+        simulacroRepository: MockSimulacroRepository(),
+      )..add(const SimulacrosRequested()),
+      child: const _SimulacrosView(),
+    );
+  }
+}
+
+class _SimulacrosView extends StatelessWidget {
+  const _SimulacrosView();
 
   @override
   Widget build(BuildContext context) {
@@ -68,31 +85,47 @@ class SimulacrosScreen extends StatelessWidget {
             ),
             // Lista de simulacros
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  _SimulacroCard(
-                    title: 'Inglés Avanzado',
-                    subject: 'Inglés',
-                    difficulty: 'Media',
-                    duration: '60 min',
-                    iconColor: AppColors.primary,
-                    iconBgColor: AppColors.primary.withOpacity(0.1),
-                    buttonColor: AppColors.primary,
-                    onTap: () => context.go('/question'),
-                  ),
-                  const SizedBox(height: 16),
-                  _SimulacroCard(
-                    title: 'Matemáticas Básicas',
-                    subject: 'Matemáticas',
-                    difficulty: 'Fácil',
-                    duration: '45 min',
-                    iconColor: AppColors.secondary,
-                    iconBgColor: AppColors.secondary.withOpacity(0.1),
-                    buttonColor: AppColors.secondary,
-                    onTap: () => context.go('/question'),
-                  ),
-                ],
+              child: BlocBuilder<SimulacrosBloc, SimulacrosState>(
+                builder: (context, state) {
+                  if (state.status == SimulacrosStatus.loading) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (state.status == SimulacrosStatus.failure) {
+                    return Center(
+                        child: Text(state.errorMessage ?? 'Error al cargar'));
+                  } else if (state.status == SimulacrosStatus.success) {
+                    if (state.simulacros.isEmpty) {
+                      return const Center(
+                          child: Text('No hay simulacros disponibles'));
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: state.simulacros.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 16),
+                      itemBuilder: (context, index) {
+                        final simulacro = state.simulacros[index];
+                        return _SimulacroCard(
+                          title: simulacro.titulo,
+                          subject: simulacro.area,
+                          difficulty: simulacro.nivel,
+                          duration: '${simulacro.duracionMinutos} min',
+                          iconColor: simulacro.area == 'Matemáticas'
+                              ? AppColors.secondary
+                              : AppColors.primary,
+                          iconBgColor: (simulacro.area == 'Matemáticas'
+                                  ? AppColors.secondary
+                                  : AppColors.primary)
+                              .withOpacity(0.1),
+                          buttonColor: simulacro.area == 'Matemáticas'
+                              ? AppColors.secondary
+                              : AppColors.primary,
+                          onTap: () => context.go('/question'),
+                        );
+                      },
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
               ),
             ),
           ],
