@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:preparate_icfes_seminario/models/exam_result_model.dart';
+import 'package:preparate_icfes_seminario/models/question_model.dart';
 import '../../../models/simulacro_model.dart';
 import '../../../repositories/simulacro_repository.dart';
 
@@ -64,8 +66,51 @@ class ExamBloc extends Bloc<ExamEvent, ExamState> {
   Future<void> _onSubmitted(
       ExamSubmitted event, Emitter<ExamState> emit) async {
     _tickerSubscription?.cancel();
-    emit(state.copyWith(status: ExamStatus.submitted));
-    // Here we would send the answers to the backend
+    
+    // Calculate results
+    int correctAnswers = 0;
+    int incorrectAnswers = 0;
+    
+    if (state.simulacro?.preguntas != null) {
+      for (final question in state.simulacro!.preguntas!) {
+        final selectedOptionId = state.answers[question.id];
+        if (selectedOptionId != null) {
+          final selectedOption = question.opciones.firstWhere(
+            (opt) => opt.id == selectedOptionId,
+            orElse: () => const Opcion(id: '', texto: '', correcta: false),
+          );
+          
+          if (selectedOption.correcta) {
+            correctAnswers++;
+          } else {
+            incorrectAnswers++;
+          }
+        } else {
+          // Unanswered counts as incorrect or just unanswered? 
+          // Usually incorrect in scoring.
+          incorrectAnswers++;
+        }
+      }
+    }
+
+    final totalQuestions = state.simulacro?.preguntas?.length ?? 0;
+    final totalScore = (correctAnswers / (totalQuestions > 0 ? totalQuestions : 1)) * 500; // Scale to 500
+    final percentage = (correctAnswers / (totalQuestions > 0 ? totalQuestions : 1)) * 100;
+    final timeSpent = (state.simulacro?.duracionMinutos ?? 0) * 60 - state.timeRemaining;
+
+    final result = ExamResult(
+      totalScore: totalScore,
+      correctAnswers: correctAnswers,
+      incorrectAnswers: incorrectAnswers,
+      totalQuestions: totalQuestions,
+      percentage: percentage,
+      timeSpentSeconds: timeSpent,
+    );
+
+    emit(state.copyWith(
+      status: ExamStatus.submitted,
+      result: result,
+    ));
   }
 
   void _onTimerTicked(ExamTimerTicked event, Emitter<ExamState> emit) {

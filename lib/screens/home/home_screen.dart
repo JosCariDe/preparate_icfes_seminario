@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:preparate_icfes_seminario/config/theme/app_colors.dart';
+import 'package:preparate_icfes_seminario/screens/login/bloc/authentication_bloc.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -28,40 +30,60 @@ class HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Saludo y nombre
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: Colors.white.withOpacity(0.3),
-                          radius: 24,
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    BlocBuilder<AuthenticationBloc, AuthenticationState>(
+                      builder: (context, authState) {
+                        final user = authState.user;
+                        final nombre = user?.nombre ?? 'Usuario';
+                        final apellido = user?.apellido ?? '';
+                        final nombreCompleto = '$nombre $apellido'.trim();
+                        
+                        return Row(
                           children: [
-                            Text(
-                              'Hola',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white.withOpacity(0.9),
-                                fontWeight: FontWeight.w300,
+                            GestureDetector(
+                              onTap: () => _showProfileMenu(context),
+                              child: CircleAvatar(
+                                backgroundColor: Colors.white.withOpacity(0.3),
+                                radius: 24,
+                                backgroundImage: user?.avatar != null
+                                    ? NetworkImage(user!.avatar!)
+                                    : null,
+                                child: user?.avatar == null
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: Colors.white,
+                                        size: 28,
+                                      )
+                                    : null,
                               ),
                             ),
-                            const Text(
-                              'José',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Hola',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                  ),
+                                  Text(
+                                    nombreCompleto.isNotEmpty ? nombreCompleto : nombre,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
-                        ),
-                      ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
                     // Tarjeta de progreso
@@ -126,7 +148,7 @@ class HomeScreen extends StatelessWidget {
                               backgroundColor: Colors.white.withOpacity(0.3),
                               valueColor: const AlwaysStoppedAnimation<Color>(
                                 AppColors.error,
-                              ),
+                               ),
                             ),
                           ),
                         ],
@@ -198,6 +220,59 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showProfileMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BlocBuilder<AuthenticationBloc, AuthenticationState>(
+              builder: (context, authState) {
+                final user = authState.user;
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage: user?.avatar != null
+                        ? NetworkImage(user!.avatar!)
+                        : null,
+                    child: user?.avatar == null
+                        ? const Icon(Icons.person)
+                        : null,
+                  ),
+                  title: Text(
+                    '${user?.nombre ?? ''} ${user?.apellido ?? ''}'.trim(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(user?.email ?? ''),
+                );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: AppColors.error),
+              title: const Text(
+                'Cerrar sesión',
+                style: TextStyle(color: AppColors.error),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                context.read<AuthenticationBloc>().add(
+                      AuthenticationLogoutRequested(),
+                    );
+              },
+            ),
+          ],
         ),
       ),
     );

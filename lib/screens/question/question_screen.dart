@@ -12,7 +12,7 @@ class QuestionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => ExamBloc(
-        simulacroRepository: MockSimulacroRepository(),
+        simulacroRepository: context.read<SimulacroRepository>(),
       )..add(const ExamStarted(simulacroId: 'sim_001')),
       child: const _QuestionView(),
     );
@@ -27,8 +27,8 @@ class _QuestionView extends StatelessWidget {
     return BlocListener<ExamBloc, ExamState>(
       listenWhen: (previous, current) => previous.status != current.status,
       listener: (context, state) {
-        if (state.status == ExamStatus.submitted) {
-          context.go('/results');
+        if (state.status == ExamStatus.submitted && state.result != null) {
+          context.go('/results', extra: state.result);
         }
       },
       child: Scaffold(
