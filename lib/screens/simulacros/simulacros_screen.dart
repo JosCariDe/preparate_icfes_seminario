@@ -119,7 +119,7 @@ class _SimulacrosView extends StatelessWidget {
                           buttonColor: simulacro.area == 'Matemáticas'
                               ? AppColors.secondary
                               : AppColors.primary,
-                          onTap: () => context.go('/question'),
+                          onTap: () => context.go('/question', extra: simulacro.id),
                         );
                       },
                     );

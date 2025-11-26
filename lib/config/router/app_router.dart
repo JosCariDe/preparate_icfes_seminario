@@ -70,7 +70,10 @@ GoRouter createRouter(AuthenticationBloc authBloc) {
       ),
       GoRoute(
         path: '/question',
-        builder: (context, state) => const QuestionScreen(),
+        builder: (context, state) {
+          final simulacroId = state.extra as String? ?? 'sim_001';
+          return QuestionScreen(simulacroId: simulacroId);
+        },
       ),
       GoRoute(
         path: '/results',
@@ -88,8 +91,21 @@ GoRouter createRouter(AuthenticationBloc authBloc) {
         builder: (context, state) => const QuestionBankScreen(),
       ),
       GoRoute(
-        path: '/question-detail',
-        builder: (context, state) => const QuestionDetailScreen(),
+        path: '/question-detail/:questionId',
+        builder: (context, state) {
+          final questionId = state.pathParameters['questionId'];
+          // Si viene como extra (desde question_bank), usar eso primero
+          final questionData = state.extra as Map<String, dynamic>?;
+          if (questionData != null) {
+            return QuestionDetailScreen(questionData: questionData);
+          }
+          // Si no, buscar por ID
+          if (questionId != null) {
+            return QuestionDetailScreen(questionId: questionId);
+          }
+          // Fallback
+          return const QuestionDetailScreen();
+        },
       ),
     ],
   );

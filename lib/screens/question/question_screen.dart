@@ -6,14 +6,19 @@ import 'package:preparate_icfes_seminario/repositories/simulacro_repository.dart
 import 'bloc/exam_bloc.dart';
 
 class QuestionScreen extends StatelessWidget {
-  const QuestionScreen({super.key});
+  final String simulacroId;
+
+  const QuestionScreen({
+    super.key,
+    this.simulacroId = 'sim_001',
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => ExamBloc(
         simulacroRepository: context.read<SimulacroRepository>(),
-      )..add(const ExamStarted(simulacroId: 'sim_001')),
+      )..add(ExamStarted(simulacroId: simulacroId)),
       child: const _QuestionView(),
     );
   }
@@ -64,13 +69,13 @@ class _QuestionView extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              /*IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () => context.pop(),
-                              ),*/
-                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back_ios_new),
+                                onPressed: () => _confirmExit(context),
+                                color: Colors.black87,
+                              ),
                               Text(
-                                'Pregunta ${state.currentQuestionIndex + 1}/$totalQuestions',
+                                'Pregunta ${state.currentQuestionIndex + 1} de $totalQuestions',
                                 style: const TextStyle( 
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -113,6 +118,26 @@ class _QuestionView extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Tag de área
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                question.area,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                             Text(
                               question.enunciado,
                               style: const TextStyle(
@@ -228,32 +253,56 @@ class _QuestionView extends StatelessWidget {
                           else
                             const SizedBox.shrink(),
                           if (state.currentQuestionIndex < totalQuestions - 1)
-                            ElevatedButton.icon(
+                            ElevatedButton(
                               onPressed: () {
                                 context.read<ExamBloc>().add(
                                       ExamQuestionChanged(
                                           state.currentQuestionIndex + 1),
                                     );
                               },
-                              icon: const Icon(Icons.arrow_forward),
-                              label: const Text('Siguiente'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
                                 foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Siguiente pregunta',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             )
                           else
-                            ElevatedButton.icon(
+                            ElevatedButton(
                               onPressed: () {
                                 context
                                     .read<ExamBloc>()
                                     .add(const ExamSubmitted());
                               },
-                              icon: const Icon(Icons.check),
-                              label: const Text('Finalizar'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
+                                backgroundColor: AppColors.primary,
                                 foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Finalizar simulacro',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                         ],
@@ -274,5 +323,33 @@ class _QuestionView extends StatelessWidget {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  void _confirmExit(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Salir del simulacro?'),
+        content: const Text(
+          'Si sales ahora, perderás el progreso del simulacro. ¿Estás seguro de que deseas salir?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.go('/');
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error,
+            ),
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,9 +1,139 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:preparate_icfes_seminario/config/theme/app_colors.dart';
+import 'package:preparate_icfes_seminario/services/data_persistence_service.dart';
 
-class CreateQuestionScreen extends StatelessWidget {
+class CreateQuestionScreen extends StatefulWidget {
   const CreateQuestionScreen({super.key});
+
+  @override
+  State<CreateQuestionScreen> createState() => _CreateQuestionScreenState();
+}
+
+class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _enunciadoController = TextEditingController();
+  final _explicacionController = TextEditingController();
+  String _selectedArea = 'Ciencias Sociales';
+  String _selectedNivel = 'Medio';
+  String _selectedTema = 'General';
+  final List<_OptionData> _options = [
+    _OptionData(label: 'A', text: '', isCorrect: false),
+    _OptionData(label: 'B', text: '', isCorrect: false),
+    _OptionData(label: 'C', text: '', isCorrect: false),
+    _OptionData(label: 'D', text: '', isCorrect: false),
+  ];
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _enunciadoController.dispose();
+    _explicacionController.dispose();
+    for (var option in _options) {
+      option.controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _saveQuestion() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Validar que haya al menos una opción correcta
+    if (!_options.any((opt) => opt.isCorrect)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes marcar al menos una opción como correcta')),
+      );
+      return;
+    }
+
+    // Validar que todas las opciones tengan texto
+    if (_options.any((opt) => opt.text.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Todas las opciones deben tener texto')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      // Mapear área a category
+      final categoryMap = {
+        'Ciencias Sociales': 'Sociales',
+        'Matemáticas': 'Matemáticas',
+        'Inglés': 'Lenguaje',
+        'Ciencias Naturales': 'Naturales',
+        'Lenguaje': 'Lenguaje',
+      };
+
+      // Crear nueva pregunta
+      final newQuestion = {
+        'id': 'preg_${DateTime.now().millisecondsSinceEpoch}',
+        'question': _enunciadoController.text.trim(),
+        'area': _selectedArea,
+        'category': categoryMap[_selectedArea] ?? 'General',
+        'difficulty': _selectedNivel == 'Bajo' ? 'Fácil' : _selectedNivel == 'Medio' ? 'Media' : 'Difícil',
+        'tema': _selectedTema,
+        'nivel': _selectedNivel,
+        'tipo': 'UNICA_OPCION',
+        'competencia': 'Comprensión',
+        'retroalimentacion': _explicacionController.text.trim(),
+        'options': _options.map((opt) {
+          return {
+            'id': 'opt_${DateTime.now().millisecondsSinceEpoch}_${opt.label}',
+            'text': '${opt.label}) ${opt.text.trim()}',
+            'correct': opt.isCorrect,
+          };
+        }).toList(),
+      };
+
+      await DataPersistenceService.addQuestion(newQuestion);
+
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pregunta guardada exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _addOption() {
+    setState(() {
+      final nextLabel = String.fromCharCode('A'.codeUnitAt(0) + _options.length);
+      _options.add(_OptionData(
+        label: nextLabel,
+        text: '',
+        isCorrect: false,
+      ));
+    });
+  }
+
+  void _removeOption(int index) {
+    if (_options.length > 2) {
+      setState(() {
+        _options.removeAt(index);
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes tener al menos 2 opciones')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +171,7 @@ class CreateQuestionScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 16),
                   const Text(
-                    'Editar pregunta', // Or 'Crear pregunta'
+                    'Crear pregunta',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -52,143 +182,210 @@ class CreateQuestionScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Modifica la información de la pregunta',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey,
+              child: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Crea una nueva pregunta para el banco',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Información de la pregunta',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          _Label(text: 'Área de conocimiento'),
-                          _Dropdown(
-                            value: 'Ciencias Sociales',
-                            items: const ['Ciencias Sociales', 'Matemáticas', 'Inglés', 'Ciencias Naturales'],
-                          ),
-                          const SizedBox(height: 16),
-                          _Label(text: 'Enunciado de la pregunta'),
-                          _TextField(
-                            hint: '¿Cuál es la capital de Colombia?',
-                            maxLines: 4,
-                          ),
-                          const SizedBox(height: 16),
-                          _Label(text: 'Explicación de la respuesta'),
-                          _TextField(
-                            hint: 'Explica por qué esta es la respuesta correcta...',
-                            maxLines: 3,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Opciones de respuesta',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Información de la pregunta',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            _Label(text: 'Área de conocimiento'),
+                            _Dropdown(
+                              value: _selectedArea,
+                              items: const [
+                                'Ciencias Sociales',
+                                'Matemáticas',
+                                'Inglés',
+                                'Ciencias Naturales',
+                                'Lenguaje'
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _selectedArea = value!),
+                            ),
+                            const SizedBox(height: 16),
+                            _Label(text: 'Tema'),
+                            TextFormField(
+                              controller: TextEditingController(text: _selectedTema),
+                              onChanged: (value) => _selectedTema = value,
+                              decoration: InputDecoration(
+                                hintText: 'Ej: Álgebra, Historia, etc.',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              ElevatedButton.icon(
-                                onPressed: () {},
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const Text('Agregar'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF81C784),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                            ),
+                            const SizedBox(height: 16),
+                            _Label(text: 'Nivel'),
+                            _Dropdown(
+                              value: _selectedNivel,
+                              items: const ['Bajo', 'Medio', 'Alto'],
+                              onChanged: (value) =>
+                                  setState(() => _selectedNivel = value!),
+                            ),
+                            const SizedBox(height: 16),
+                            _Label(text: 'Enunciado de la pregunta'),
+                            TextFormField(
+                              controller: _enunciadoController,
+                              validator: (value) =>
+                                  value?.isEmpty ?? true ? 'Campo requerido' : null,
+                              maxLines: 4,
+                              decoration: InputDecoration(
+                                hintText: '¿Cuál es la capital de Colombia?',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _Label(text: 'Explicación de la respuesta'),
+                            TextFormField(
+                              controller: _explicacionController,
+                              validator: (value) =>
+                                  value?.isEmpty ?? true ? 'Campo requerido' : null,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Explica por qué esta es la respuesta correcta...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Opciones de respuesta',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _OptionItem(
-                            label: 'Opción A',
-                            text: 'Bogotá',
-                            isCorrect: true,
-                          ),
-                          const SizedBox(height: 16),
-                          _OptionItem(
-                            label: 'Opción B',
-                            text: 'Medellín',
-                            isCorrect: false,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
+                                ElevatedButton.icon(
+                                  onPressed: _addOption,
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: const Text('Agregar'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF81C784),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            ..._options.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final option = entry.value;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: _OptionItem(
+                                  label: option.label,
+                                  controller: option.controller,
+                                  isCorrect: option.isCorrect,
+                                  onCorrectChanged: (value) {
+                                    setState(() {
+                                      // Solo una opción puede ser correcta
+                                      for (var opt in _options) {
+                                        opt.isCorrect = false;
+                                      }
+                                      option.isCorrect = value;
+                                    });
+                                  },
+                                  onRemove: () => _removeOption(index),
+                                ),
+                              );
+                            }).toList(),
+                          ],
                         ),
-                        child: const Text(
-                          'Guardar Pregunta',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _isSaving ? null : _saveQuestion,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
                           ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Guardar Pregunta',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -197,6 +394,20 @@ class CreateQuestionScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OptionData {
+  final String label;
+  final TextEditingController controller;
+  bool isCorrect;
+
+  String get text => controller.text;
+
+  _OptionData({
+    required this.label,
+    required String text,
+    required this.isCorrect,
+  }) : controller = TextEditingController(text: text);
 }
 
 class _Label extends StatelessWidget {
@@ -220,45 +431,16 @@ class _Label extends StatelessWidget {
   }
 }
 
-class _TextField extends StatelessWidget {
-  final String hint;
-  final int maxLines;
-
-  const _TextField({
-    required this.hint,
-    this.maxLines = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[400]),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
-        ),
-      ),
-    );
-  }
-}
-
 class _Dropdown extends StatelessWidget {
   final String value;
   final List<String> items;
+  final ValueChanged<String?> onChanged;
 
-  const _Dropdown({required this.value, required this.items});
+  const _Dropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -279,7 +461,7 @@ class _Dropdown extends StatelessWidget {
               child: Text(value),
             );
           }).toList(),
-          onChanged: (_) {},
+          onChanged: onChanged,
         ),
       ),
     );
@@ -288,13 +470,17 @@ class _Dropdown extends StatelessWidget {
 
 class _OptionItem extends StatelessWidget {
   final String label;
-  final String text;
+  final TextEditingController controller;
   final bool isCorrect;
+  final ValueChanged<bool> onCorrectChanged;
+  final VoidCallback onRemove;
 
   const _OptionItem({
     required this.label,
-    required this.text,
+    required this.controller,
     required this.isCorrect,
+    required this.onCorrectChanged,
+    required this.onRemove,
   });
 
   @override
@@ -304,21 +490,23 @@ class _OptionItem extends StatelessWidget {
       children: [
         Row(
           children: [
-            // Checkbox circle
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: isCorrect ? const Color(0xFF27AE60) : Colors.grey[200],
-                shape: BoxShape.circle,
+            GestureDetector(
+              onTap: () => onCorrectChanged(!isCorrect),
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: isCorrect ? const Color(0xFF27AE60) : Colors.grey[200],
+                  shape: BoxShape.circle,
+                ),
+                child: isCorrect
+                    ? const Icon(Icons.check, color: Colors.white, size: 16)
+                    : null,
               ),
-              child: isCorrect
-                  ? const Icon(Icons.check, color: Colors.white, size: 16)
-                  : null,
             ),
             const SizedBox(width: 8),
             Text(
-              label,
+              'Opción $label',
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 color: Colors.grey[700],
@@ -344,7 +532,7 @@ class _OptionItem extends StatelessWidget {
             ],
             const Spacer(),
             IconButton(
-              onPressed: () {},
+              onPressed: onRemove,
               icon: Icon(Icons.close, color: Colors.red[200], size: 20),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -352,9 +540,12 @@ class _OptionItem extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: TextEditingController(text: text),
+        TextFormField(
+          controller: controller,
+          validator: (value) =>
+              value?.isEmpty ?? true ? 'Campo requerido' : null,
           decoration: InputDecoration(
+            hintText: 'Texto de la opción...',
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -363,6 +554,10 @@ class _OptionItem extends StatelessWidget {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
             ),
           ),
         ),
