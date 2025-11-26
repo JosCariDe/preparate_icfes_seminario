@@ -56,11 +56,17 @@ GoRouter createRouter(AuthenticationBloc authBloc) {
         routes: [
           GoRoute(
             path: 'create-simulacro',
-            builder: (context, state) => const CreateSimulacroScreen(),
+            builder: (context, state) {
+              final simulacroId = state.extra as String?;
+              return CreateSimulacroScreen(simulacroId: simulacroId);
+            },
           ),
           GoRoute(
             path: 'create-question',
-            builder: (context, state) => const CreateQuestionScreen(),
+            builder: (context, state) {
+              final questionId = state.extra as String?;
+              return CreateQuestionScreen(questionId: questionId);
+            },
           ),
         ],
       ),

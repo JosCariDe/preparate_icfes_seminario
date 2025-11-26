@@ -11,8 +11,17 @@ class ResultsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (result == null) {
-      return const Scaffold(
-        body: Center(child: Text('No hay resultados disponibles')),
+      return Scaffold(
+        body: Center(child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text('No hay resultados disponibles'),
+            IconButton(onPressed: () {
+                            return context.go('/');
+                          }, icon: Icon(Icons.arrow_back))
+          ],
+        )),
       );
     }
 

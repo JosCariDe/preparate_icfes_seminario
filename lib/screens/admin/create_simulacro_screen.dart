@@ -6,7 +6,9 @@ import 'package:preparate_icfes_seminario/models/question_model.dart';
 import 'package:preparate_icfes_seminario/services/data_persistence_service.dart';
 
 class CreateSimulacroScreen extends StatefulWidget {
-  const CreateSimulacroScreen({super.key});
+  final String? simulacroId;
+  
+  const CreateSimulacroScreen({super.key, this.simulacroId});
 
   @override
   State<CreateSimulacroScreen> createState() => _CreateSimulacroScreenState();
@@ -21,6 +23,50 @@ class _CreateSimulacroScreenState extends State<CreateSimulacroScreen> {
   String _selectedNivel = 'Medio';
   final List<String> _selectedQuestionIds = [];
   bool _isSaving = false;
+  bool _isLoading = false;
+  bool get _isEditMode => widget.simulacroId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditMode) {
+      _loadSimulacroData();
+    }
+  }
+
+  Future<void> _loadSimulacroData() async {
+    setState(() => _isLoading = true);
+    try {
+      final simulacros = await DataPersistenceService.getSimulacros();
+      final simulacro = simulacros.firstWhere(
+        (s) => s.id == widget.simulacroId,
+        orElse: () => throw Exception('Simulacro no encontrado'),
+      );
+
+      setState(() {
+        _tituloController.text = simulacro.titulo;
+        _descripcionController.text = simulacro.descripcion;
+        _duracionController.text = simulacro.duracionMinutos.toString();
+        _selectedArea = simulacro.area;
+        _selectedNivel = simulacro.nivel;
+        _selectedQuestionIds.addAll(
+          simulacro.preguntas?.map((p) => p.id) ?? [],
+        );
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar simulacro: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        context.pop();
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -49,9 +95,9 @@ class _CreateSimulacroScreenState extends State<CreateSimulacroScreen> {
           .where((q) => _selectedQuestionIds.contains(q['id']))
           .toList();
 
-      // Crear nuevo simulacro
-      final newSimulacro = Simulacro(
-        id: 'sim_${DateTime.now().millisecondsSinceEpoch}',
+      // Crear o actualizar simulacro
+      final simulacro = Simulacro(
+        id: _isEditMode ? widget.simulacroId! : 'sim_${DateTime.now().millisecondsSinceEpoch}',
         titulo: _tituloController.text.trim(),
         descripcion: _descripcionController.text.trim(),
         area: _selectedArea,
@@ -62,13 +108,17 @@ class _CreateSimulacroScreenState extends State<CreateSimulacroScreen> {
         preguntas: selectedQuestions.map((q) => _mapToPregunta(q)).toList(),
       );
 
-      await DataPersistenceService.addSimulacro(newSimulacro);
+      if (_isEditMode) {
+        await DataPersistenceService.updateSimulacro(widget.simulacroId!, simulacro);
+      } else {
+        await DataPersistenceService.addSimulacro(simulacro);
+      }
 
       if (mounted) {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Simulacro guardado exitosamente'),
+          SnackBar(
+            content: Text(_isEditMode ? 'Simulacro actualizado exitosamente' : 'Simulacro guardado exitosamente'),
             backgroundColor: Colors.green,
           ),
         );
@@ -144,9 +194,9 @@ class _CreateSimulacroScreenState extends State<CreateSimulacroScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Text(
-                    'Crear simulacro',
-                    style: TextStyle(
+                  Text(
+                    _isEditMode ? 'Editar simulacro' : 'Crear simulacro',
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -156,7 +206,9 @@ class _CreateSimulacroScreenState extends State<CreateSimulacroScreen> {
               ),
             ),
             Expanded(
-              child: Form(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Form(
                 key: _formKey,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
@@ -377,9 +429,9 @@ class _CreateSimulacroScreenState extends State<CreateSimulacroScreen> {
                                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                   ),
                                 )
-                              : const Text(
-                                  'Guardar Simulacro',
-                                  style: TextStyle(
+                              : Text(
+                                  _isEditMode ? 'Actualizar Simulacro' : 'Guardar Simulacro',
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),

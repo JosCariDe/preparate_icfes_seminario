@@ -47,6 +47,20 @@ class _QuestionView extends StatelessWidget {
                 return Center(
                     child: Text(state.errorMessage ?? 'Error al cargar'));
               } else if (state.status == ExamStatus.success) {
+
+                if (state.simulacro == null ||
+                    state.simulacro!.preguntas == null ||
+                    state.simulacro!.preguntas!.isEmpty) {
+                  return Center(
+                      child: Column(
+                        children: [
+                          Text('No hay preguntas disponibles para este simulacro'),
+                          IconButton(onPressed: () {
+                            return context.go('/');
+                          }, icon: Icon(Icons.arrow_back))
+                        ],
+                      ));
+                }
                 final question =
                     state.simulacro!.preguntas![state.currentQuestionIndex];
                 final totalQuestions = state.simulacro!.preguntas!.length;

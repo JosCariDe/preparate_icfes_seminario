@@ -3,9 +3,119 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:preparate_icfes_seminario/config/theme/app_colors.dart';
 import 'package:preparate_icfes_seminario/screens/login/bloc/authentication_bloc.dart';
+import 'package:preparate_icfes_seminario/models/simulacro_model.dart';
+import 'package:preparate_icfes_seminario/services/data_persistence_service.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  List<Simulacro> _simulacros = [];
+  List<Simulacro> _filteredSimulacros = [];
+  String _selectedArea = 'Todas las áreas';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSimulacros();
+  }
+
+  Future<void> _loadSimulacros() async {
+    setState(() => _isLoading = true);
+    try {
+      final simulacros = await DataPersistenceService.getSimulacros();
+      setState(() {
+        _simulacros = simulacros;
+        _applyFilter();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar simulacros: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _applyFilter() {
+    if (_selectedArea == 'Todas las áreas') {
+      _filteredSimulacros = List.from(_simulacros);
+    } else {
+      _filteredSimulacros = _simulacros
+          .where((s) => s.area == _selectedArea)
+          .toList();
+    }
+  }
+
+  void _onAreaChanged(String? newArea) {
+    if (newArea != null) {
+      setState(() {
+        _selectedArea = newArea;
+        _applyFilter();
+      });
+    }
+  }
+
+  Future<void> _deleteSimulacro(String simulacroId, String titulo) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar eliminación'),
+        content: Text('¿Estás seguro de que deseas eliminar "$titulo"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await DataPersistenceService.deleteSimulacro(simulacroId);
+        await _loadSimulacros();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Simulacro eliminado exitosamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al eliminar: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _editSimulacro(String simulacroId) {
+    context.push('/admin/create-simulacro', extra: simulacroId).then((_) {
+      _loadSimulacros(); // Recargar después de editar
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +190,9 @@ class AdminDashboardScreen extends StatelessWidget {
                       label: 'Crear simulacro',
                       icon: Icons.add,
                       color: const Color(0xFF81C784), // Greenish
-                      onTap: () => context.push('/admin/create-simulacro'),
+                      onTap: () => context.push('/admin/create-simulacro').then((_) {
+                        _loadSimulacros(); // Recargar después de crear
+                      }),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -119,17 +231,17 @@ class AdminDashboardScreen extends StatelessWidget {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: 'Todas las áreas',
+                        value: _selectedArea,
                         isExpanded: true,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items: ['Todas las áreas', 'Matemáticas', 'Inglés', 'Ciencias']
+                        items: ['Todas las áreas', 'Matemáticas', 'Inglés', 'Ciencias Naturales', 'Ciencias Sociales', 'Lenguaje']
                             .map((String value) {
                           return DropdownMenuItem<String>(
                             value: value,
                             child: Text(value),
                           );
                         }).toList(),
-                        onChanged: (_) {},
+                        onChanged: _onAreaChanged,
                       ),
                     ),
                   ),
@@ -143,9 +255,9 @@ class AdminDashboardScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Simulacros creados',
-                    style: TextStyle(
+                  Text(
+                    'Simulacros creados (${_filteredSimulacros.length})',
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -164,37 +276,35 @@ class AdminDashboardScreen extends StatelessWidget {
             const SizedBox(height: 16),
             // List
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                children: const [
-                  _AdminSimulacroCard(
-                    title: 'Simulacro Matemáticas Básico',
-                    area: 'Matemáticas',
-                    questionsCount: 20,
-                    status: 'Publicado',
-                    statusColor: Color(0xFFE0F2F1),
-                    statusTextColor: Color(0xFF00695C),
-                  ),
-                  SizedBox(height: 16),
-                  _AdminSimulacroCard(
-                    title: 'Simulacro Inglés Intermedio',
-                    area: 'Inglés',
-                    questionsCount: 15,
-                    status: 'Borrador',
-                    statusColor: Color(0xFFFFEBEE),
-                    statusTextColor: Color(0xFFC62828),
-                  ),
-                  SizedBox(height: 16),
-                  _AdminSimulacroCard(
-                    title: 'Simulacro Ciencias Naturales',
-                    area: 'Ciencias',
-                    questionsCount: 25,
-                    status: 'Publicado',
-                    statusColor: Color(0xFFE0F2F1),
-                    statusTextColor: Color(0xFF00695C),
-                  ),
-                ],
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredSimulacros.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No hay simulacros disponibles',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          itemCount: _filteredSimulacros.length,
+                          itemBuilder: (context, index) {
+                            final simulacro = _filteredSimulacros[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: _AdminSimulacroCard(
+                                title: simulacro.titulo,
+                                area: simulacro.area,
+                                questionsCount: simulacro.totalPreguntas,
+                                status: 'Publicado',
+                                statusColor: const Color(0xFFE0F2F1),
+                                statusTextColor: const Color(0xFF00695C),
+                                onEdit: () => _editSimulacro(simulacro.id),
+                                onDelete: () => _deleteSimulacro(simulacro.id, simulacro.titulo),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
@@ -260,6 +370,8 @@ class _AdminSimulacroCard extends StatelessWidget {
   final String status;
   final Color statusColor;
   final Color statusTextColor;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const _AdminSimulacroCard({
     required this.title,
@@ -268,6 +380,8 @@ class _AdminSimulacroCard extends StatelessWidget {
     required this.status,
     required this.statusColor,
     required this.statusTextColor,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -331,7 +445,7 @@ class _AdminSimulacroCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('Editar'),
                   style: OutlinedButton.styleFrom(
@@ -344,7 +458,7 @@ class _AdminSimulacroCard extends StatelessWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: onDelete,
                   icon: const Icon(Icons.delete_outline, size: 18),
                   label: const Text('Eliminar'),
                   style: OutlinedButton.styleFrom(

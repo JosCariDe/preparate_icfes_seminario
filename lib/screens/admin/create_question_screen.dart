@@ -4,7 +4,9 @@ import 'package:preparate_icfes_seminario/config/theme/app_colors.dart';
 import 'package:preparate_icfes_seminario/services/data_persistence_service.dart';
 
 class CreateQuestionScreen extends StatefulWidget {
-  const CreateQuestionScreen({super.key});
+  final String? questionId;
+  
+  const CreateQuestionScreen({super.key, this.questionId});
 
   @override
   State<CreateQuestionScreen> createState() => _CreateQuestionScreenState();
@@ -24,6 +26,66 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
     _OptionData(label: 'D', text: '', isCorrect: false),
   ];
   bool _isSaving = false;
+  bool _isLoading = false;
+  bool get _isEditMode => widget.questionId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditMode) {
+      _loadQuestionData();
+    }
+  }
+
+  Future<void> _loadQuestionData() async {
+    setState(() => _isLoading = true);
+    try {
+      final questions = await DataPersistenceService.getQuestions();
+      final question = questions.firstWhere(
+        (q) => q['id'] == widget.questionId,
+        orElse: () => throw Exception('Pregunta no encontrada'),
+      );
+
+      setState(() {
+        _enunciadoController.text = question['question'] as String? ?? '';
+        _explicacionController.text = question['retroalimentacion'] as String? ?? '';
+        _selectedArea = question['area'] as String? ?? 'Ciencias Sociales';
+        _selectedNivel = question['nivel'] as String? ?? 'Medio';
+        _selectedTema = question['tema'] as String? ?? 'General';
+        
+        // Reconstruir opciones
+        _options.clear();
+        final optionsList = question['options'] as List<dynamic>? ?? [];
+        for (var i = 0; i < optionsList.length; i++) {
+          final opt = optionsList[i] as Map<String, dynamic>;
+          final label = String.fromCharCode('A'.codeUnitAt(0) + i);
+          // Remover el prefijo "A) ", "B) ", etc. del texto
+          var text = opt['text'] as String? ?? '';
+          if (text.length > 3 && text[1] == ')') {
+            text = text.substring(3).trim();
+          }
+          _options.add(_OptionData(
+            label: label,
+            text: text,
+            isCorrect: opt['correct'] == true,
+          ));
+        }
+        
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar pregunta: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        context.pop();
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -66,9 +128,9 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
         'Lenguaje': 'Lenguaje',
       };
 
-      // Crear nueva pregunta
-      final newQuestion = {
-        'id': 'preg_${DateTime.now().millisecondsSinceEpoch}',
+      // Crear o actualizar pregunta
+      final question = {
+        'id': _isEditMode ? widget.questionId! : 'preg_${DateTime.now().millisecondsSinceEpoch}',
         'question': _enunciadoController.text.trim(),
         'area': _selectedArea,
         'category': categoryMap[_selectedArea] ?? 'General',
@@ -87,13 +149,17 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
         }).toList(),
       };
 
-      await DataPersistenceService.addQuestion(newQuestion);
+      if (_isEditMode) {
+        await DataPersistenceService.updateQuestion(widget.questionId!, question);
+      } else {
+        await DataPersistenceService.addQuestion(question);
+      }
 
       if (mounted) {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pregunta guardada exitosamente'),
+          SnackBar(
+            content: Text(_isEditMode ? 'Pregunta actualizada exitosamente' : 'Pregunta guardada exitosamente'),
             backgroundColor: Colors.green,
           ),
         );
@@ -170,9 +236,9 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Text(
-                    'Crear pregunta',
-                    style: TextStyle(
+                  Text(
+                    _isEditMode ? 'Editar pregunta' : 'Crear pregunta',
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -182,7 +248,9 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
               ),
             ),
             Expanded(
-              child: Form(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Form(
                 key: _formKey,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
@@ -375,9 +443,9 @@ class _CreateQuestionScreenState extends State<CreateQuestionScreen> {
                                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                   ),
                                 )
-                              : const Text(
-                                  'Guardar Pregunta',
-                                  style: TextStyle(
+                              : Text(
+                                  _isEditMode ? 'Actualizar Pregunta' : 'Guardar Pregunta',
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
