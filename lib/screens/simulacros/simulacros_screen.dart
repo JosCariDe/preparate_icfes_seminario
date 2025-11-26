@@ -12,7 +12,7 @@ class SimulacrosScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => SimulacrosBloc(
-        simulacroRepository: MockSimulacroRepository(),
+        simulacroRepository: context.read<SimulacroRepository>(),
       )..add(const SimulacrosRequested()),
       child: const _SimulacrosView(),
     );
@@ -119,7 +119,7 @@ class _SimulacrosView extends StatelessWidget {
                           buttonColor: simulacro.area == 'Matemáticas'
                               ? AppColors.secondary
                               : AppColors.primary,
-                          onTap: () => context.go('/question'),
+                          onTap: () => context.go('/question', extra: simulacro.id),
                         );
                       },
                     );

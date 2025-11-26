@@ -1,9 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:preparate_icfes_seminario/config/theme/app_colors.dart';
+import 'package:preparate_icfes_seminario/screens/login/bloc/authentication_bloc.dart';
+import 'package:preparate_icfes_seminario/services/data_persistence_service.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _simulacrosCount = 0;
+  int _questionsCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final simulacros = await DataPersistenceService.getSimulacros();
+    final questions = await DataPersistenceService.getQuestions();
+    setState(() {
+      _simulacrosCount = simulacros.length;
+      _questionsCount = questions.length;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,40 +56,60 @@ class HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Saludo y nombre
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: Colors.white.withOpacity(0.3),
-                          radius: 24,
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    BlocBuilder<AuthenticationBloc, AuthenticationState>(
+                      builder: (context, authState) {
+                        final user = authState.user;
+                        final nombre = user?.nombre ?? 'Usuario';
+                        final apellido = user?.apellido ?? '';
+                        final nombreCompleto = '$nombre $apellido'.trim();
+                        
+                        return Row(
                           children: [
-                            Text(
-                              'Hola',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white.withOpacity(0.9),
-                                fontWeight: FontWeight.w300,
+                            GestureDetector(
+                              onTap: () => _showProfileMenu(context),
+                              child: CircleAvatar(
+                                backgroundColor: Colors.white.withOpacity(0.3),
+                                radius: 24,
+                                backgroundImage: user?.avatar != null
+                                    ? NetworkImage(user!.avatar!)
+                                    : null,
+                                child: user?.avatar == null
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: Colors.white,
+                                        size: 28,
+                                      )
+                                    : null,
                               ),
                             ),
-                            const Text(
-                              'José',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Hola',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                  ),
+                                  Text(
+                                    nombreCompleto.isNotEmpty ? nombreCompleto : nombre,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
-                        ),
-                      ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
                     // Tarjeta de progreso
@@ -126,7 +174,7 @@ class HomeScreen extends StatelessWidget {
                               backgroundColor: Colors.white.withOpacity(0.3),
                               valueColor: const AlwaysStoppedAnimation<Color>(
                                 AppColors.error,
-                              ),
+                               ),
                             ),
                           ),
                         ],
@@ -162,7 +210,9 @@ class HomeScreen extends StatelessWidget {
                         _QuickAccessCard(
                           icon: Icons.description_outlined,
                           title: 'Simulacros',
-                          subtitle: '3 disponibles',
+                          subtitle: _isLoading
+                              ? 'Cargando...'
+                              : '$_simulacrosCount ${_simulacrosCount == 1 ? 'disponible' : 'disponibles'}',
                           iconColor: AppColors.primary,
                           iconBgColor: AppColors.primary.withOpacity(0.1),
                           onTap: () => context.push('/simulacros'),
@@ -170,7 +220,9 @@ class HomeScreen extends StatelessWidget {
                         _QuickAccessCard(
                           icon: Icons.menu_book_outlined,
                           title: 'Banco',
-                          subtitle: '250 preguntas',
+                          subtitle: _isLoading
+                              ? 'Cargando...'
+                              : '$_questionsCount ${_questionsCount == 1 ? 'pregunta' : 'preguntas'}',
                           iconColor: AppColors.secondary,
                           iconBgColor: AppColors.secondary.withOpacity(0.1),
                           onTap: () => context.push('/question-bank'),
@@ -186,7 +238,7 @@ class HomeScreen extends StatelessWidget {
                         _QuickAccessCard(
                           icon: Icons.emoji_events_outlined,
                           title: 'Resultados',
-                          subtitle: '8 simulacros',
+                          subtitle: 'Ver resultados',
                           iconColor: Color(0xFF3FADA8),
                           iconBgColor: Color(0xFF3FADA8).withOpacity(0.1),
                           onTap: () => context.push('/results'),
@@ -198,6 +250,59 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showProfileMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BlocBuilder<AuthenticationBloc, AuthenticationState>(
+              builder: (context, authState) {
+                final user = authState.user;
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage: user?.avatar != null
+                        ? NetworkImage(user!.avatar!)
+                        : null,
+                    child: user?.avatar == null
+                        ? const Icon(Icons.person)
+                        : null,
+                  ),
+                  title: Text(
+                    '${user?.nombre ?? ''} ${user?.apellido ?? ''}'.trim(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(user?.email ?? ''),
+                );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: AppColors.error),
+              title: const Text(
+                'Cerrar sesión',
+                style: TextStyle(color: AppColors.error),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                context.read<AuthenticationBloc>().add(
+                      AuthenticationLogoutRequested(),
+                    );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -227,13 +332,14 @@ class _QuickAccessCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.secondaryBackground,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+              color: iconColor.withOpacity(0.15),
+              blurRadius: 15,
+              offset: const Offset(0, 4),
+              spreadRadius: 0,
             ),
           ],
         ),
@@ -243,38 +349,55 @@ class _QuickAccessCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Ícono
+              // Ícono con mejor diseño
               Container(
-                width: 48,
-                height: 48,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      iconColor,
+                      iconColor.withOpacity(0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: iconColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Icon(
                   icon,
-                  color: iconColor,
-                  size: 24,
+                  color: Colors.white,
+                  size: 28,
                 ),
               ),
-              // Textos
+              const SizedBox(height: 16),
+              // Textos mejorados
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
                       color: AppColors.primaryText,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     subtitle,
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],

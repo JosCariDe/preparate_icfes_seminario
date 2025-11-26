@@ -9,6 +9,7 @@ class ExamState extends Equatable {
   final Map<String, String> answers; // questionId -> optionId
   final int timeRemaining; // in seconds
   final String? errorMessage;
+  final ExamResult? result;
 
   const ExamState({
     this.status = ExamStatus.initial,
@@ -17,6 +18,7 @@ class ExamState extends Equatable {
     this.answers = const {},
     this.timeRemaining = 0,
     this.errorMessage,
+    this.result,
   });
 
   ExamState copyWith({
@@ -26,6 +28,7 @@ class ExamState extends Equatable {
     Map<String, String>? answers,
     int? timeRemaining,
     String? errorMessage,
+    ExamResult? result,
   }) {
     return ExamState(
       status: status ?? this.status,
@@ -34,6 +37,7 @@ class ExamState extends Equatable {
       answers: answers ?? this.answers,
       timeRemaining: timeRemaining ?? this.timeRemaining,
       errorMessage: errorMessage,
+      result: result ?? this.result,
     );
   }
 
@@ -45,5 +49,6 @@ class ExamState extends Equatable {
         answers,
         timeRemaining,
         errorMessage,
+        result,
       ];
 }

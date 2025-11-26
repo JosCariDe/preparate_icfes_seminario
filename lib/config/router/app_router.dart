@@ -1,44 +1,135 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:preparate_icfes_seminario/screens/admin/admin_dashboard_screen.dart';
+import 'package:preparate_icfes_seminario/screens/admin/create_question_screen.dart';
+import 'package:preparate_icfes_seminario/screens/admin/create_simulacro_screen.dart';
+import 'package:preparate_icfes_seminario/screens/login/bloc/authentication_bloc.dart';
 import 'package:preparate_icfes_seminario/screens/screens.dart';
+import 'package:preparate_icfes_seminario/models/exam_result_model.dart';
 
-final appRouter = GoRouter(
-  initialLocation: '/splash',
-  routes: [
-    GoRoute(
-      path: '/splash',
-      builder: (context, state) => const SplashScreen(),
-    ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginScreen(),
-    ),
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const HomeScreen(),
-    ),
-    GoRoute(
-      path: '/simulacros',
-      builder: (context, state) => const SimulacrosScreen(),
-    ),
-    GoRoute(
-      path: '/question',
-      builder: (context, state) => const QuestionScreen(),
-    ),
-    GoRoute(
-      path: '/results',
-      builder: (context, state) => const ResultsScreen(),
-    ),
-    GoRoute(
-      path: '/statistics',
-      builder: (context, state) => const StatisticsScreen(),
-    ),
-    GoRoute(
-      path: '/question-bank',
-      builder: (context, state) => const QuestionBankScreen(),
-    ),
-    GoRoute(
-      path: '/question-detail',
-      builder: (context, state) => const QuestionDetailScreen(),
-    ),
-  ],
-);
+GoRouter createRouter(AuthenticationBloc authBloc) {
+  return GoRouter(
+    initialLocation: '/',
+    refreshListenable: GoRouterRefreshStream(authBloc.stream),
+    redirect: (context, state) {
+      final authState = authBloc.state;
+      final isLoggingIn = state.matchedLocation == '/login';
+      final isSplash = state.matchedLocation == '/splash';
+
+      if (authState.status == AuthenticationStatus.unknown) {
+        return '/splash';
+      }
+
+      if (authState.status == AuthenticationStatus.unauthenticated) {
+        if (isLoggingIn || isSplash) return null;
+        return '/login';
+      }
+
+      if (authState.status == AuthenticationStatus.authenticated) {
+        if (authState.user?.rol == 'ADMIN') {
+          if (state.matchedLocation.startsWith('/admin')) return null;
+          return '/admin';
+        }
+        
+        if (isLoggingIn || isSplash) return '/';
+        return null;
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: '/admin',
+        builder: (context, state) => const AdminDashboardScreen(),
+        routes: [
+          GoRoute(
+            path: 'create-simulacro',
+            builder: (context, state) {
+              final simulacroId = state.extra as String?;
+              return CreateSimulacroScreen(simulacroId: simulacroId);
+            },
+          ),
+          GoRoute(
+            path: 'create-question',
+            builder: (context, state) {
+              final questionId = state.extra as String?;
+              return CreateQuestionScreen(questionId: questionId);
+            },
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/simulacros',
+        builder: (context, state) => const SimulacrosScreen(),
+      ),
+      GoRoute(
+        path: '/question',
+        builder: (context, state) {
+          final simulacroId = state.extra as String? ?? 'sim_001';
+          return QuestionScreen(simulacroId: simulacroId);
+        },
+      ),
+      GoRoute(
+        path: '/results',
+        builder: (context, state) {
+          final result = state.extra as ExamResult?;
+          return ResultsScreen(result: result);
+        },
+      ),
+      GoRoute(
+        path: '/statistics',
+        builder: (context, state) => const StatisticsScreen(),
+      ),
+      GoRoute(
+        path: '/question-bank',
+        builder: (context, state) => const QuestionBankScreen(),
+      ),
+      GoRoute(
+        path: '/question-detail/:questionId',
+        builder: (context, state) {
+          final questionId = state.pathParameters['questionId'];
+          // Si viene como extra (desde question_bank), usar eso primero
+          final questionData = state.extra as Map<String, dynamic>?;
+          if (questionData != null) {
+            return QuestionDetailScreen(questionData: questionData);
+          }
+          // Si no, buscar por ID
+          if (questionId != null) {
+            return QuestionDetailScreen(questionId: questionId);
+          }
+          // Fallback
+          return const QuestionDetailScreen();
+        },
+      ),
+    ],
+  );
+}
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen(
+      (dynamic _) => notifyListeners(),
+    );
+  }
+
+  late final dynamic _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
